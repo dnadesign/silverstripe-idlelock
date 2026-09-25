@@ -2,16 +2,16 @@
 
 namespace DNADesign\IdleLock\Extensions;
 
+use SilverStripe\Core\Extension;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\TextField;
 use SilverStripe\Security\Member;
-use SilverStripe\ORM\DataExtension;
 use SilverStripe\Core\Config\Config;
 
 /**
  * Allow a CMS override for the login screen message displayed to locked users
  */
-class SiteConfigLockoutExtension extends DataExtension
+class SiteConfigLockoutExtension extends Extension
 {
     private static $db = [
         'LockoutMessage' => 'Varchar(255)',

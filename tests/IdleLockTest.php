@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 namespace DNADesign\IdleLock\Tests;
 
 use SilverStripe\Dev\SapphireTest;
@@ -9,7 +12,7 @@ use SilverStripe\Security\Member;
  * NOTE: at time of writing, I couldn't get the test to run at all
  * Seems to be a widespread issue.
  */
-class IdleLockTest extends SapphireTest
+final class IdleLockTest extends SapphireTest
 {
     /**
      * Defines the fixture file to use for this test class
@@ -25,7 +28,7 @@ class IdleLockTest extends SapphireTest
     public function testDefaultThreshold()
     {
         $threshold = (int) Member::config()->get('lockout_threshold_days');
-        $this->assertEquals(30, $threshold);
+        $this->assertSame(30, $threshold);
     }
 
     // TODO: Add other tests to check every functions

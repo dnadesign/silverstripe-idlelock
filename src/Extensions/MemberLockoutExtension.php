@@ -2,9 +2,9 @@
 
 namespace DNADesign\IdleLock\Extensions;
 
+use SilverStripe\Core\Extension;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Security\Member;
-use SilverStripe\ORM\DataExtension;
 use SilverStripe\Core\Config\Config;
 use SilverStripe\Forms\CheckboxField;
 use SilverStripe\Security\Permission;
@@ -12,7 +12,7 @@ use SilverStripe\Security\LoginAttempt;
 use SilverStripe\SiteConfig\SiteConfig;
 use SilverStripe\ORM\FieldType\DBDatetime;
 
-class MemberLockoutExtension extends DataExtension
+class MemberLockoutExtension extends Extension
 {
     private static $db = [
         'Locked' => 'Boolean',
@@ -24,7 +24,7 @@ class MemberLockoutExtension extends DataExtension
         $fields->removeByName(['Locked', 'LockoutExempt']);
 
         if (Permission::check('ADMIN')) {
-            if (!$this->owner->LockoutExempt) {
+            if (!$this->getOwner()->LockoutExempt) {
                 $defaultLockoutThreshold = Config::inst()->get(Member::class, 'lockout_threshold_days');
                 $fields->addFieldToTab('Root.Main', CheckboxField::create('Locked')->setDescription(sprintf('When checked, this user cannot log in. Set either manually here, or by idle timeout (default %s days or specified per security group).', $defaultLockoutThreshold)), 'FirstName');
             }
@@ -39,10 +39,8 @@ class MemberLockoutExtension extends DataExtension
 
     public function onBeforeWrite()
     {
-        parent::onBeforeWrite();
-
-        if ($this->owner->LockoutExempt) {
-            $this->owner->Locked = false;
+        if ($this->getOwner()->LockoutExempt) {
+            $this->getOwner()->Locked = false;
         }
     }
 
@@ -54,7 +52,7 @@ class MemberLockoutExtension extends DataExtension
      */
     public function canLogIn(&$result)
     {
-        if ($this->owner->Locked) {
+        if ($this->getOwner()->Locked) {
             $config = SiteConfig::current_site_config();
             $defaultLockoutMessage = Config::inst()->get(Member::class, 'lockout_message');
             $errorMessage = $config->LockoutMessage ?: $defaultLockoutMessage;
@@ -69,23 +67,21 @@ class MemberLockoutExtension extends DataExtension
     public function shouldBeLockedOut() : bool
     {
         // False if exempt, or a member of an exempt group
-        if ($this->owner->LockoutExempt || $this->owner->Groups()->filter('LockoutExempt', true)->first()) {
+        if ($this->getOwner()->LockoutExempt || $this->getOwner()->Groups()->filter('LockoutExempt', true)->first()) {
             return false;
         }
 
-        $lockoutGroups = $this->owner->Groups()->filter([
+        $lockoutGroups = $this->getOwner()->Groups()->filter([
             'LockoutEnabled' => true
         ]);
 
 
         if ($lockoutGroups->count() > 0) {
-            $lockAfterDate = $this->owner->getLockAfterDate($lockoutGroups);
-            $lastAccessedDate = $this->owner->getLastLogin();
+            $lockAfterDate = $this->getOwner()->getLockAfterDate($lockoutGroups);
+            $lastAccessedDate = $this->getOwner()->getLastLogin();
 
             // For accounts for new users who haven't logged in yet, use the created date
-            if (is_null($lastAccessedDate)) {
-                $lastAccessedDate = $this->owner->dbObject('Created');
-            }
+            $lastAccessedDate ??= $this->getOwner()->dbObject('Created');
 
             return $lockAfterDate > $lastAccessedDate;
         }
@@ -115,7 +111,7 @@ class MemberLockoutExtension extends DataExtension
      */
     public function getLastAccessed(): ?DBDateTime
     {
-        if ($lastTime = $this->owner->getLastLogin()) {
+        if ($lastTime = $this->getOwner()->getLastLogin()) {
             return $lastTime;
         }
 
@@ -132,7 +128,7 @@ class MemberLockoutExtension extends DataExtension
         $lastTime = LoginAttempt::get()
             ->filter(
                 [
-                    'MemberID' => $this->owner->ID,
+                    'MemberID' => $this->getOwner()->ID,
                     'Status' => 'Success',
                     ]
             )
@@ -153,8 +149,8 @@ class MemberLockoutExtension extends DataExtension
      */
     public function doLockOutAfterIdle() : bool
     {
-        $this->owner->Locked = true;
-        $this->owner->write();
+        $this->getOwner()->Locked = true;
+        $this->getOwner()->write();
 
         return true;
     }
@@ -166,7 +162,7 @@ class MemberLockoutExtension extends DataExtension
      */
     public function getGroupNames()
     {
-        $groups = $this->owner->Groups()->sort('Title ASC');
+        $groups = $this->getOwner()->Groups()->sort('Title ASC');
 
         $groupNames = $groups->map('ID', 'Title')->toArray();
         $groupNamesString = implode(' | ', $groupNames);

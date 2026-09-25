@@ -5,6 +5,8 @@ namespace DNADesign\IdleLock\Tasks;
 use SilverStripe\Dev\BuildTask;
 use SilverStripe\ORM\FieldType\DBDatetime;
 use SilverStripe\Security\Member;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputInterface;
 
 /**
  * This is in lieu of proper unit test as I can't seem to be able to make them work.
@@ -12,17 +14,18 @@ use SilverStripe\Security\Member;
  */
 class UnitTestTask extends BuildTask
 {
-    private static $segment = 'idlelock-unittest';
+    protected static string $commandName = 'idlelock-unittest';
 
-    protected $enabled = false;
+    protected bool $enabled = false;
 
-    public function run($request)
+    protected function execute(InputInterface $input, PolyOutput $output): int
     {
-        echo 'testDefaultThreshold => '.$this->testDefaultThreshold().PHP_EOL;
-        echo 'testNotLockedOut => '.$this->testNotLockedOut().PHP_EOL;
-        echo 'testLockedOut => '.$this->testLockedOut().PHP_EOL;
+        $output->writeln('testDefaultThreshold => '.$this->testDefaultThreshold());
+        $output->writeln('testNotLockedOut => '.$this->testNotLockedOut());
+        $output->writeln('testLockedOut => '.$this->testLockedOut());
 
-        echo 'Done.';
+        $output->writeln('Done.');
+        return Command::SUCCESS;
     }
 
     private function testDefaultThreshold()
@@ -35,7 +38,7 @@ class UnitTestTask extends BuildTask
     {
         DBDatetime::set_mock_now('2024-02-01 10:00:00');
 
-        $member = new Member();
+        $member = Member::create();
         $member->LastEdited = '2024-01-15 10:00:00';
 
         return $member->shouldBeLockedOut() === false;
@@ -45,7 +48,7 @@ class UnitTestTask extends BuildTask
     {
         DBDatetime::set_mock_now('2024-02-01 10:00:00');
 
-        $member = new Member();
+        $member = Member::create();
         $member->LastEdited = '2023-01-01 10:00:00';
 
         return $member->shouldBeLockedOut() === true;

@@ -2,16 +2,16 @@
 
 namespace DNADesign\IdleLock\Extensions;
 
+use SilverStripe\Core\Extension;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Security\Member;
-use SilverStripe\ORM\DataExtension;
 use SilverStripe\Core\Config\Config;
 use SilverStripe\Forms\NumericField;
 use SilverStripe\Forms\CheckboxField;
 use SilverStripe\Security\Group;
 use SilverStripe\Security\Permission;
 
-class GroupLockoutExtension extends DataExtension
+class GroupLockoutExtension extends Extension
 {
     private static $db = [
         'LockoutEnabled' => 'Boolean',
@@ -39,7 +39,7 @@ class GroupLockoutExtension extends DataExtension
 
         }
             // Enable lockout for this group
-            if (!$this->owner->LockoutExempt) {
+            if (!$this->getOwner()->LockoutExempt) {
                 $fields->insertAfter(
                     'Description',
                     CheckboxField::create('LockoutEnabled', 'Enable lockout')
@@ -48,7 +48,7 @@ class GroupLockoutExtension extends DataExtension
             }
 
             // Set the lockout threshold
-            if ($this->owner->LockoutEnabled) {
+            if ($this->getOwner()->LockoutEnabled) {
                 $fields->insertAfter(
                     'LockoutEnabled',
                     NumericField::create('LockoutThresholdDays', 'Lockout threshold in days')
@@ -63,10 +63,8 @@ class GroupLockoutExtension extends DataExtension
 
     public function onBeforeWrite()
     {
-        parent::onBeforeWrite();
-
-        if ($this->owner->LockoutExempt) {
-            $this->owner->LockoutEnabled = false;
+        if ($this->getOwner()->LockoutExempt) {
+            $this->getOwner()->LockoutEnabled = false;
         }
     }
 }
