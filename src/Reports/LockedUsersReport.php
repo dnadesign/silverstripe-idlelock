@@ -2,15 +2,15 @@
 
 namespace DNADesign\IdleLock\Reports;
 
+use LogicException;
 use SilverStripe\Forms\GridField\GridField;
-use SilverStripe\Forms\GridField\GridFieldExportButton;
 use SilverStripe\Forms\GridField\GridFieldPageCount;
 use SilverStripe\Forms\GridField\GridFieldPaginator;
 use SilverStripe\Forms\GridField\GridFieldPrintButton;
-use SilverStripe\ORM\FieldType\DBDate;
-use SilverStripe\ORM\FieldType\DBDatetime;
+use SilverStripe\ORM\DataList;
 use SilverStripe\Reports\Report;
 use SilverStripe\Security\Member;
+use function implode;
 
 /**
  * List users and their locked status
@@ -24,21 +24,28 @@ class LockedUserReport extends Report
     /**
      * Get the source records for the report, including user data.
      *
-     * @param  array|null $params
-     * @param  array|null $sort
-     * @param  int|null   $limit
-     * @return DataList
+     * @param array<string, mixed>|null $params
+     * @param array<string, string>|string|null $sort
+     * @return DataList<Member>
      */
-    public function sourceRecords($params = null, $sort = null, $limit = null)
+    public function sourceRecords(?array $params = null, array|string|null $sort = null, ?int $limit = null)
     {
         // Fetch user data
-        $users = Member::get()->leftJoin('Group_Members', 'Group_Members.MemberID = Member.ID');
+        /** @var DataList<Member> $users */
+        $users = Member::get();
+
+        $users = $users->leftJoin(
+            'Group_Members',
+            'Group_Members.MemberID = Member.ID'
+        );
 
         // Apply sorting
-        if ($sort && is_array($sort)) {
-            foreach ($sort as $sortField => $sortDir) {
-                $users = $users->sort($sortField, $sortDir);
-            }
+        if ($sort !== null && $sort !== []) {
+            $users = $users->sort($sort);
+        }
+
+        if ($limit !== null) {
+            $users = $users->limit($limit);
         }
 
         return $users;
@@ -47,9 +54,15 @@ class LockedUserReport extends Report
     /**
      * Get the columns for the report.
      *
-     * @return array
+     * @return array<
+     *      string,
+     *      string|array{
+     *          title: string,
+     *          formatting: callable(mixed, Member): string
+     *      }
+     *  >
      */
-    public function columns()
+    public function columns(): array
     {
         return [
             'FirstName' => 'First Name',
@@ -59,29 +72,26 @@ class LockedUserReport extends Report
             'getGroupNames' => 'Groups',
             'Date' => [
                 'title' => 'Last logged in',
-                'formatting' => function ($value, $item) {
-                    $customDate = $item->getLastLogin();
-                    if ($customDate instanceof DBDate || $customDate instanceof DBDatetime) {
-                        return $customDate->format('dd/MM/y');
-                    }
-                    return $customDate ?: 'Never';
-                }
+                'formatting' => static function (mixed $value, Member $item): string {
+                    return $item->getLastLogin()?->format('dd/MM/y') ?? 'Never';
+                },
             ],
         ];
     }
 
     /**
      * Get the report field with added export button.
-     *
-     * @return GridField
      */
-    public function getReportField()
+    public function getReportField(): GridField
     {
         $field = parent::getReportField();
 
+        if (!$field instanceof GridField) {
+            throw new LogicException('Expected the report field to be a GridField');
+        }
+
         // Add export button
         $field->getConfig()
-            ->addComponent(GridFieldExportButton::create('buttons-before-left'))
             ->removeComponentsByType(GridFieldPrintButton::class)
             ->removeComponentsByType(GridFieldPageCount::class)
             ->removeComponentsByType(GridFieldPaginator::class);
@@ -91,11 +101,8 @@ class LockedUserReport extends Report
 
     /**
      * Format the list of groups for a user.
-     *
-     * @param  DataObject $record
-     * @return string
      */
-    protected function formatGroupsList($record)
+    protected function formatGroupsList(Member $record): string
     {
         return implode(', ', $record->Groups()->column('Title'));
     }

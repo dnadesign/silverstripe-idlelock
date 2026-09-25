@@ -6,9 +6,10 @@ use Psr\Log\LoggerInterface;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Dev\BuildTask;
 use SilverStripe\PolyExecution\PolyOutput;
-use Symfony\Component\Console\Command\Command;
 use SilverStripe\Security\Member;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use function sprintf;
 
 class LockMembersTask extends BuildTask
 {

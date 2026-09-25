@@ -4,9 +4,11 @@ namespace DNADesign\IdleLock\Tasks;
 
 use SilverStripe\Dev\BuildTask;
 use SilverStripe\ORM\FieldType\DBDatetime;
+use SilverStripe\PolyExecution\PolyOutput;
 use SilverStripe\Security\Member;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use function is_int;
 
 /**
  * This is in lieu of proper unit test as I can't seem to be able to make them work.
@@ -16,25 +18,26 @@ class UnitTestTask extends BuildTask
 {
     protected static string $commandName = 'idlelock-unittest';
 
-    protected bool $enabled = false;
+    protected static bool $enabled = false;
 
     protected function execute(InputInterface $input, PolyOutput $output): int
     {
-        $output->writeln('testDefaultThreshold => '.$this->testDefaultThreshold());
-        $output->writeln('testNotLockedOut => '.$this->testNotLockedOut());
-        $output->writeln('testLockedOut => '.$this->testLockedOut());
+        $output->writeln('testDefaultThreshold => ' . $this->testDefaultThreshold());
+        $output->writeln('testNotLockedOut => ' . $this->testNotLockedOut());
+        $output->writeln('testLockedOut => ' . $this->testLockedOut());
 
         $output->writeln('Done.');
         return Command::SUCCESS;
     }
 
-    private function testDefaultThreshold()
+    private function testDefaultThreshold(): bool
     {
-        $threshold = (int) Member::config()->get('lockout_threshold_days');
-        return 30 === $threshold;
+        $threshold = Member::config()->get('lockout_threshold_days');
+
+        return is_int($threshold) && $threshold === 30;
     }
 
-    private function testNotLockedOut()
+    private function testNotLockedOut(): bool
     {
         DBDatetime::set_mock_now('2024-02-01 10:00:00');
 
@@ -44,7 +47,7 @@ class UnitTestTask extends BuildTask
         return $member->shouldBeLockedOut() === false;
     }
 
-    private function testLockedOut()
+    private function testLockedOut(): bool
     {
         DBDatetime::set_mock_now('2024-02-01 10:00:00');
 
