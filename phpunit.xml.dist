@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit
+    bootstrap="vendor/silverstripe/framework/tests/bootstrap.php"
+    colors="true"
+    cacheDirectory=".phpunit.cache"
+>
+    <php>
+        <env
+            name="SS_DATABASE_CLASS"
+            value="SilverStripe\ORM\Connect\NullDatabase"
+        />
+        <env
+            name="SS_DATABASE_NAME"
+            value="idlelock_test"
+        />
+    </php>
+
+    <testsuites>
+        <testsuite name="Idlelock">
+            <directory>tests</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>

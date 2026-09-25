@@ -33,7 +33,14 @@
     },
     "autoload": {
         "psr-4": {
-            "DNADesign\\IdleLock\\": "src/",
+            "DNADesign\\IdleLock\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "classmap": [
+            "tests/Fixtures/Page.php"
+        ],
+        "psr-4": {
             "DNADesign\\IdleLock\\Tests\\": "tests/"
         }
     },

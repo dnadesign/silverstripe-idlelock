@@ -18,6 +18,7 @@ yarn.lock
 
 # Tests
 .phpunit.result.cache
+/.phpunit.cache/
 coverage/
 
 # Docker
