@@ -2,30 +2,49 @@
 
 namespace DNADesign\IdleLock\Extensions;
 
-use SilverStripe\Forms\FieldList;
-use SilverStripe\Security\Member;
-use SilverStripe\ORM\DataExtension;
+use LogicException;
 use SilverStripe\Core\Config\Config;
+use SilverStripe\Core\Extension;
+use SilverStripe\Core\Validation\ValidationResult;
 use SilverStripe\Forms\CheckboxField;
-use SilverStripe\Security\Permission;
-use SilverStripe\Security\LoginAttempt;
-use SilverStripe\SiteConfig\SiteConfig;
+use SilverStripe\Forms\FieldList;
+use SilverStripe\ORM\DataList;
 use SilverStripe\ORM\FieldType\DBDatetime;
+use SilverStripe\Security\Group;
+use SilverStripe\Security\LoginAttempt;
+use SilverStripe\Security\Member;
+use SilverStripe\Security\Permission;
+use SilverStripe\SiteConfig\SiteConfig;
+use function implode;
+use function is_numeric;
+use function is_scalar;
+use function is_string;
+use function sprintf;
 
-class MemberLockoutExtension extends DataExtension
+/**
+ * @extends Extension<Member>
+ */
+class MemberLockoutExtension extends Extension
 {
-    private static $db = [
+    private static array $db = [
         'Locked' => 'Boolean',
         'LockoutExempt' => 'Boolean',
     ];
 
-    public function updateCMSFields(FieldList $fields)
+    public function updateCMSFields(FieldList $fields): void
     {
         $fields->removeByName(['Locked', 'LockoutExempt']);
 
         if (Permission::check('ADMIN')) {
-            if (!$this->owner->LockoutExempt) {
-                $defaultLockoutThreshold = Config::inst()->get(Member::class, 'lockout_threshold_days');
+            if (!$this->getOwner()->LockoutExempt) {
+                $defaultLockoutThreshold = Config::inst()->get(
+                    Member::class,
+                    'lockout_threshold_days'
+                );
+
+                $defaultLockoutThreshold = is_scalar($defaultLockoutThreshold)
+                    ? $defaultLockoutThreshold
+                    : '';
                 $fields->addFieldToTab('Root.Main', CheckboxField::create('Locked')->setDescription(sprintf('When checked, this user cannot log in. Set either manually here, or by idle timeout (default %s days or specified per security group).', $defaultLockoutThreshold)), 'FirstName');
             }
 
@@ -37,26 +56,31 @@ class MemberLockoutExtension extends DataExtension
 
     }
 
-    public function onBeforeWrite()
+    public function onBeforeWrite(): void
     {
-        parent::onBeforeWrite();
-
-        if ($this->owner->LockoutExempt) {
-            $this->owner->Locked = false;
+        if ($this->getOwner()->LockoutExempt) {
+            $this->getOwner()
+                ->Locked = false;
         }
     }
 
     /**
      * Prevent login if the Member is locked out, allow a custom message
-     *
-     * @param  $result
-     * @return void
      */
-    public function canLogIn(&$result)
+    public function canLogIn(ValidationResult &$result): void
     {
-        if ($this->owner->Locked) {
+        if ($this->getOwner()->Locked) {
             $config = SiteConfig::current_site_config();
-            $defaultLockoutMessage = Config::inst()->get(Member::class, 'lockout_message');
+
+            $defaultLockoutMessage = Config::inst()->get(
+                Member::class,
+                'lockout_message'
+            );
+
+            $defaultLockoutMessage = is_string($defaultLockoutMessage)
+                ? $defaultLockoutMessage
+                : '';
+
             $errorMessage = $config->LockoutMessage ?: $defaultLockoutMessage;
             $result->addError($errorMessage);
         }
@@ -66,26 +90,28 @@ class MemberLockoutExtension extends DataExtension
      * Return whether the user should be locked out
      * Depending on whether they haven't logged in for a certain amount of time.
      */
-    public function shouldBeLockedOut() : bool
+    public function shouldBeLockedOut(): bool
     {
         // False if exempt, or a member of an exempt group
-        if ($this->owner->LockoutExempt || $this->owner->Groups()->filter('LockoutExempt', true)->first()) {
+        if ($this->getOwner()->LockoutExempt || $this->getOwner()->Groups()->filter('LockoutExempt', true)->first()) {
             return false;
         }
 
-        $lockoutGroups = $this->owner->Groups()->filter([
-            'LockoutEnabled' => true
-        ]);
-
+        $lockoutGroups = $this->getOwner()
+            ->Groups()
+            ->filter([
+                'LockoutEnabled' => true,
+            ]);
 
         if ($lockoutGroups->count() > 0) {
-            $lockAfterDate = $this->owner->getLockAfterDate($lockoutGroups);
-            $lastAccessedDate = $this->owner->getLastLogin();
+            $lockAfterDate = $this->getOwner()
+                ->getLockAfterDate($lockoutGroups);
+            $lastAccessedDate = $this->getOwner()
+                ->getLastLogin();
 
             // For accounts for new users who haven't logged in yet, use the created date
-            if (is_null($lastAccessedDate)) {
-                $lastAccessedDate = $this->owner->dbObject('Created');
-            }
+            $lastAccessedDate ??= $this->getOwner()
+                ->dbObject('Created');
 
             return $lockAfterDate > $lastAccessedDate;
         }
@@ -96,8 +122,10 @@ class MemberLockoutExtension extends DataExtension
 
     /**
      * Return the Date after which a user should be locked out
+     *
+     * @param DataList<Group> $lockoutGroups
      */
-    public function getLockAfterDate($lockoutGroups) : DBDateTime
+    public function getLockAfterDate(DataList $lockoutGroups): DBDatetime
     {
         if ($lockoutGroups->count() > 0) {
             $lowestThreshold = $lockoutGroups->min('LockoutThresholdDays');
@@ -105,17 +133,21 @@ class MemberLockoutExtension extends DataExtension
             $lowestThreshold = Config::inst()->get(Member::class, 'lockout_threshold_days');
         }
 
-        return DBDateTime::now()->modify("-{$lowestThreshold} days");
+        if (!is_numeric($lowestThreshold)) {
+            throw new LogicException('The lockout threshold must be numeric');
+        }
+
+        return DBDatetime::now()->modify(
+            sprintf('-%d days', (int) $lowestThreshold)
+        );
     }
 
     /**
      * Return the date the user has last accessed the CMS
-     *
-     * @return DBDatetime|null
      */
-    public function getLastAccessed(): ?DBDateTime
+    public function getLastAccessed(): ?DBDatetime
     {
-        if ($lastTime = $this->owner->getLastLogin()) {
+        if ($lastTime = $this->getOwner()->getLastLogin()) {
             return $lastTime;
         }
 
@@ -124,37 +156,36 @@ class MemberLockoutExtension extends DataExtension
 
     /**
      * Get the last login attempt
-     *
-     * @return DBDatetime|null
      */
-    public function getLastLogin(): ?DBDateTime
+    public function getLastLogin(): ?DBDatetime
     {
         $lastTime = LoginAttempt::get()
-            ->filter(
-                [
-                    'MemberID' => $this->owner->ID,
-                    'Status' => 'Success',
-                    ]
-            )
+            ->filter([
+                'MemberID' => $this->getOwner()
+                    ->ID,
+                'Status' => 'Success',
+            ])
             ->sort('Created', 'DESC')
             ->first();
 
-        if ($lastTime) {
-            return $lastTime->dbObject('Created');
+        if (!$lastTime) {
+            return null;
         }
 
-        return null;
+        $created = $lastTime->dbObject('Created');
+
+        return $created instanceof DBDatetime ? $created : null;
     }
 
     /**
      * Lock the user if their last login was more than the lockout threshold ago
-     *
-     * @return boolean
      */
-    public function doLockOutAfterIdle() : bool
+    public function doLockOutAfterIdle(): bool
     {
-        $this->owner->Locked = true;
-        $this->owner->write();
+        $this->getOwner()
+            ->Locked = true;
+        $this->getOwner()
+            ->write();
 
         return true;
     }
@@ -166,9 +197,12 @@ class MemberLockoutExtension extends DataExtension
      */
     public function getGroupNames()
     {
-        $groups = $this->owner->Groups()->sort('Title ASC');
+        $groups = $this->getOwner()
+            ->Groups()
+            ->sort('Title ASC');
 
-        $groupNames = $groups->map('ID', 'Title')->toArray();
+        $groupNames = $groups->map('ID', 'Title')
+            ->toArray();
         $groupNamesString = implode(' | ', $groupNames);
 
         return $groupNamesString;

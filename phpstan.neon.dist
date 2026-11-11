@@ -1,0 +1,17 @@
+includes:
+	- phar://phpstan.phar/conf/bleedingEdge.neon
+parameters:
+    level: 9
+    # Modify paths as needed
+    paths:
+        - src
+        - tests
+    excludePaths:
+        - ecs.php
+        - rector.php
+    treatPhpDocTypesAsCertain: false
+    reportUnmatchedIgnoredErrors: false
+    silverstan:
+        # Only required if the application has PHPUnit tests
+        # See: https://github.com/Cambis/silverstan?tab=readme-ov-file#silverstripedevtestonly-
+        includeTestOnly: true

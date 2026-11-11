@@ -5,15 +5,21 @@ namespace DNADesign\IdleLock\Tasks;
 use Psr\Log\LoggerInterface;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Dev\BuildTask;
+use SilverStripe\PolyExecution\PolyOutput;
 use SilverStripe\Security\Member;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputInterface;
+use function sprintf;
 
 class LockMembersTask extends BuildTask
 {
-    protected $title = 'Lock Members Task';
+    protected string $title = 'Lock Members Task';
 
-    protected $description = 'Locks member accounts based on last login time. Lockout threshold determined per security Group.';
+    protected static string $commandName = 'LockMembersTask';
 
-    public function run($request)
+    protected static string $description = 'Locks member accounts based on last login time. Lockout threshold determined per security Group.';
+
+    protected function execute(InputInterface $input, PolyOutput $output): int
     {
         Injector::inst()->get(LoggerInterface::class)->info('Check for idle member accounts...');
 
@@ -24,6 +30,6 @@ class LockMembersTask extends BuildTask
             }
         }
 
-        exit;
+        return Command::SUCCESS;
     }
 }

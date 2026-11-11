@@ -2,29 +2,34 @@
 
 namespace DNADesign\IdleLock\Extensions;
 
-use SilverStripe\Forms\FieldList;
-use SilverStripe\Security\Member;
-use SilverStripe\ORM\DataExtension;
 use SilverStripe\Core\Config\Config;
-use SilverStripe\Forms\NumericField;
+use SilverStripe\Core\Extension;
 use SilverStripe\Forms\CheckboxField;
+use SilverStripe\Forms\FieldList;
+use SilverStripe\Forms\NumericField;
 use SilverStripe\Security\Group;
+use SilverStripe\Security\Member;
 use SilverStripe\Security\Permission;
+use function is_scalar;
+use function sprintf;
 
-class GroupLockoutExtension extends DataExtension
+/**
+ * @extends Extension<Group>
+ */
+class GroupLockoutExtension extends Extension
 {
-    private static $db = [
+    private static array $db = [
         'LockoutEnabled' => 'Boolean',
         'LockoutExempt' => 'Boolean',
         'LockoutThresholdDays' => 'Int',
     ];
 
-    public function updateCMSFields(FieldList $fields)
+    public function updateCMSFields(FieldList $fields): void
     {
         $fields->removeByName([
             'LockoutEnabled',
             'LockoutExempt',
-            'LockoutThresholdDays'
+            'LockoutThresholdDays',
         ]);
 
         if (Permission::check('ADMIN')) {
@@ -38,35 +43,45 @@ class GroupLockoutExtension extends DataExtension
             }
 
         }
-            // Enable lockout for this group
-            if (!$this->owner->LockoutExempt) {
-                $fields->insertAfter(
-                    'Description',
-                    CheckboxField::create('LockoutEnabled', 'Enable lockout')
-                        ->setDescription('Activates the idle-lockout feature for members of this group'),
-                );
-            }
+        // Enable lockout for this group
+        if (!$this->getOwner()->LockoutExempt) {
+            $fields->insertAfter(
+                'Description',
+                CheckboxField::create('LockoutEnabled', 'Enable lockout')
+                    ->setDescription('Activates the idle-lockout feature for members of this group'),
+            );
+        }
 
-            // Set the lockout threshold
-            if ($this->owner->LockoutEnabled) {
-                $fields->insertAfter(
-                    'LockoutEnabled',
-                    NumericField::create('LockoutThresholdDays', 'Lockout threshold in days')
-                        ->setDescription(sprintf(
-                            'Inactive time in days. Members of this group will be locked out if they
+        // Set the lockout threshold
+        if ($this->getOwner()->LockoutEnabled) {
+            $defaultThreshold = Config::inst()->get(
+                Member::class,
+                'lockout_threshold_days'
+            );
+
+            $defaultThreshold = is_scalar($defaultThreshold)
+                ? $defaultThreshold
+                : '';
+
+            $fields->insertAfter(
+                'LockoutEnabled',
+                NumericField::create('LockoutThresholdDays', 'Lockout threshold in days')
+                    ->setDescription(sprintf(
+                        'Inactive time in days. Members of this group will be locked out if they
                             do not log in for this amount of time.<br>Set to 0 to use the default of
-                            %s days.', Config::inst()->get(Member::class, 'lockout_threshold_days')))
-                        ->setAttribute('max', 999),
-                );
-            }
+                            %s days.',
+                        $defaultThreshold
+                    ))
+                    ->setAttribute('max', 999),
+            );
+        }
     }
 
-    public function onBeforeWrite()
+    public function onBeforeWrite(): void
     {
-        parent::onBeforeWrite();
-
-        if ($this->owner->LockoutExempt) {
-            $this->owner->LockoutEnabled = false;
+        if ($this->getOwner()->LockoutExempt) {
+            $this->getOwner()
+                ->LockoutEnabled = false;
         }
     }
 }
